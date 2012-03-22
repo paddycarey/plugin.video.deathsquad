@@ -13,7 +13,8 @@ __addonid__           = __addon__.getAddonInfo('id')
 __addonidint__        = int(sys.argv[1])
 
 # initialise cache object to speed up plugin operation
-cache = StorageServer.StorageServer(__addonid__ + '-pages', 1)
+page_cache = StorageServer.StorageServer(__addonid__ + 'cached_pages', 1)
+video_cache = StorageServer.StorageServer(__addonid__ + 'cached_videos', 24 * 7)
 
 class Main:
 
@@ -46,13 +47,16 @@ class Main:
             utils.log('Checking page for videos: Page %s' % str(pageNum))
             
             # scrape site for list of videos
-            video_list = {}
-            video_list = cache.cacheFunction(deathsquad.pull_video_list, pageNum)
-            
+            video_list = page_cache.cacheFunction(deathsquad.pull_video_list, pageNum)
+
             # send each item to XBMC, mode 3 opens video
-            for video in video_list:
-                
-                utils.addVideo(linkName = video['title'], source = video['src'], videoID = video['id'], thumbPath = video['thumb'])
+            for video_page_url in video_list:
+                try:
+                    video = video_cache.cacheFunction(deathsquad.get_video_details, video_page_url)
+                except TypeError:
+                    pass
+                else:
+                    utils.addVideo(linkName = video['title'], source = video['src'], videoID = video['id'], thumbPath = video['thumb'])
                 
             # add a link to the Next Page
             utils.addNext(pageNum + 1)

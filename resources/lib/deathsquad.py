@@ -140,52 +140,17 @@ def pull_video_list(page_number = 1, category_url = ''):
     feed = RSSWrapper(tree.getroot())
 
     feed_items = []
-    videos = []
     
-    items_per_page = 20
+    items_per_page = 15
     
     for item in feed:
         feed_items.append(item.link)
     
-    for video_page_url in split_seq(feed_items, items_per_page)[page_number -1]:
-        video_details = get_video_details(video_page_url)
-        if video_details:
-            videos.append(video_details)
-    
-    return videos
+    return split_seq(feed_items, items_per_page)[page_number -1]
 
-
-def getCategories():
-    """
-    Gets the list of categories and their feed urls from deathsquad.tv
-
-    @returns list containing dictionary of each category found
-    """     
-    
-    # url of deathsquad homepage
-    url = "http://deathsquad.tv/"
-
-    categories = []
-
-    # Create a new soup instance and assign a video list html to a variable
-    soup = BeautifulSoup(get_remote_data(url))
-
-    # parse the html to find the list of categories
-    category_list = soup.find('ul', 'children').findAll('li')
-
-    # For each div
-    for category in category_list:
-        
-        category_dict = {}
-        
-        category_dict['url'] = category.a['href'].replace('http://deathsquad.tv/?', '')
-        category_dict['name'] = category.a.string
-        
-        categories.append(category_dict)
-
-    return categories
 
 
 if __name__ == '__main__':
         
+        # Just testing
         print pull_video_list(1)
