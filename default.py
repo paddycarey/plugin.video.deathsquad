@@ -51,11 +51,11 @@ class Main:
 
             # send each item to XBMC, mode 3 opens video
             for video_page_url in video_list:
-                try:
-                    video = video_cache.cacheFunction(deathsquad.get_video_details, video_page_url)
-                except TypeError:
-                    pass
-                else:
+
+                video = video_cache.cacheFunction(deathsquad.get_video_details, video_page_url)
+
+                if video:
+                    
                     utils.addVideo(linkName = video['title'], source = video['src'], videoID = video['id'], thumbPath = video['thumb'])
                 
             # add a link to the Next Page

@@ -75,7 +75,8 @@ def get_video_details(url):
     blogentry = soup.find('div', 'entry_content')
     
     if not blogentry:
-        return None
+        
+        return ''
     
     video = {}
     
@@ -89,7 +90,7 @@ def get_video_details(url):
     
     except:
     
-        return None
+        return ''
     
     try:
     
@@ -126,7 +127,7 @@ def get_video_details(url):
     
     else:
     
-        return None
+        return ''
 
     return video
 
