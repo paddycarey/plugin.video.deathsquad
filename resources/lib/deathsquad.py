@@ -4,10 +4,62 @@ import re
 import os
 import traceback
 from BeautifulSoup import BeautifulSoup
-import resources.lib.utils as utils
+from elementtree import ElementTree
 
+
+class ElementWrapper:
     
-def pull_video_list(page_no):
+    def __init__(self, element, ns=None):
+        self._element = element
+        self._ns = ns or ""
+        
+    def __getattr__(self, tag):
+        if tag.startswith("__"):
+            raise AttributeError(tag)
+        return self._element.findtext(self._ns + tag)
+
+
+class RSSWrapper(ElementWrapper):
+
+    def __init__(self, feed):
+        channel = feed.find("channel")
+        ElementWrapper.__init__(self, channel)
+        self._items = channel.findall("item")
+
+    def __getitem__(self, index):
+        return ElementWrapper(self._items[index])
+
+
+def get_remote_data(url):
+    
+    """Retrieve and return remote resource as string
+    
+    Arguments:  url -- A string containing the url of a remote page to retrieve
+    Returns:    data -- A string containing the contents to the remote page"""
+
+    # Build the page request including setting the User Agent
+    req  = urllib2.Request(url)
+    req.add_header('User-Agent', 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3')
+
+    # connect to url using urlopen
+    client = urllib2.urlopen(req)
+    
+    # read data from page
+    data = client.read()
+    
+    # close connection to url
+    client.close()
+    
+    # return the retrieved data
+    return data
+
+
+def split_seq(seq,size):
+    """ Split up seq in pieces of size """
+    return [seq[i:i+size] for i in range(0, len(seq), size)]
+
+
+def get_video_details(url):
     """
     Gets the list of thumbnails, video URLs and titles from the video site and display the list
 
@@ -16,85 +68,124 @@ def pull_video_list(page_no):
 
     @returns dictionary
     """     
-    
-    # Get the page number and add it to the URL (to allow moving through the video pages)
-    url = "http://deathsquad.tv/?paged=" + str(page_no)
-
-    videos = []
 
     # Create a new soup instance and assign a video list html to a variable
-    soup = BeautifulSoup(utils.getHtml(url))
+    soup = BeautifulSoup(get_remote_data(url))
 
-    # Get all the divs with the podcast content
-    result = soup.findAll('article')
+    blogentry = soup.find('div', 'entry_content')
+    
+    if not blogentry:
+        return None
+    
+    video = {}
+    
+    # Get the title
+    video['title'] = soup.find('hgroup', 'post-title').h1.string
 
-    # For each div
-    for r in result:
+    try:
+    
+        # Get the video URL
+        video['url'] = blogentry.p.center.a['href']
+    
+    except:
+    
+        return None
+    
+    try:
+    
+        # Get the thumbnail
+        video['thumb'] = blogentry.p.center.a.img['src']
+    
+    except:
+    
+        video['thumb'] = ''
+    
+    if re.search(r'vimeo', video['url']):
         
-        blogentry = r.find('div', 'entry_content')
+        video['src'] = 'vimeo'
         
-        if not blogentry:
-            continue
+        # Extract clip ID from the URL, method varying depending on whether it's player.vimeo.com or vimeo.com/id
+        if re.search(r'player.vimeo.com/video', video['url']):
         
-        video = {}
-        
-        # Get the title
-        video['title'] = r.find('h4', 'entry-title').a.string
-
-        try:
-        
-            # Get the video URL
-            video['url'] = blogentry.p.center.a['href']
-        
-        except:
-        
-            continue
-        
-        try:
-        
-            # Get the thumbnail
-            video['thumb'] = blogentry.p.center.a.img['src']
-        
-        except:
-        
-            video['thumb'] = ''
-        
-        if re.search(r'vimeo', video['url']):
-            
-            video['src'] = 'vimeo'
-            
-            # Extract clip ID from the URL, method varying depending on whether it's player.vimeo.com or vimeo.com/id
-            if re.search(r'player.vimeo.com/video', video['url']):
-            
-                url_section = video['url'].split('/')
-                clip_id = url_section[4]
-                clip_id = clip_id.split('?')[0]
-            
-            else:
-            
-                url_section =  video['url'].split('/')
-                clip_id = url_section[3]
-            
-            video['id'] = clip_id
-        
-        elif re.search(r'ustream', video['url']):
-        
-            # get src and id if video is ustream
-            video['src'] = 'ustream'
-            video['id'] = video['url'].replace('http://www.ustream.tv/recorded/', '')
+            url_section = video['url'].split('/')
+            clip_id = url_section[4]
+            clip_id = clip_id.split('?')[0]
         
         else:
         
-            continue
+            url_section =  video['url'].split('/')
+            clip_id = url_section[3]
         
-        # output details of scraped video to log
-        utils.log('Video found: %s' % video['title'])
-        utils.log('URL: %s' % video['url'])
-        utils.log('Source: %s' % video['src'])
-        utils.log('VideoID: %s' % video['id'])
-        utils.log('Thumb: %s' % video['thumb'])
-        
-        # add video to videolist
-        videos.append(video)
+        video['id'] = clip_id
+    
+    elif re.search(r'ustream', video['url']):
+    
+        # get src and id if video is ustream
+        video['src'] = 'ustream'
+        video['id'] = video['url'].replace('http://www.ustream.tv/recorded/', '')
+    
+    else:
+    
+        return None
 
+    return video
+
+
+def pull_video_list(page_number = 1, category_url = ''):
+    
+    URL = 'http://deathsquad.tv/?feed=rss2&%s' % category_url
+    
+    tree = ElementTree.parse(urllib2.urlopen(URL))
+
+    feed = RSSWrapper(tree.getroot())
+
+    feed_items = []
+    videos = []
+    
+    items_per_page = 20
+    
+    for item in feed:
+        feed_items.append(item.link)
+    
+    for video_page_url in split_seq(feed_items, items_per_page)[page_number -1]:
+        video_details = get_video_details(video_page_url)
+        if video_details:
+            videos.append(video_details)
+    
     return videos
+
+
+def getCategories():
+    """
+    Gets the list of categories and their feed urls from deathsquad.tv
+
+    @returns list containing dictionary of each category found
+    """     
+    
+    # url of deathsquad homepage
+    url = "http://deathsquad.tv/"
+
+    categories = []
+
+    # Create a new soup instance and assign a video list html to a variable
+    soup = BeautifulSoup(get_remote_data(url))
+
+    # parse the html to find the list of categories
+    category_list = soup.find('ul', 'children').findAll('li')
+
+    # For each div
+    for category in category_list:
+        
+        category_dict = {}
+        
+        category_dict['url'] = category.a['href'].replace('http://deathsquad.tv/?', '')
+        category_dict['name'] = category.a.string
+        
+        categories.append(category_dict)
+
+    return categories
+
+
+if __name__ == '__main__':
+        
+        print pull_video_list(1)

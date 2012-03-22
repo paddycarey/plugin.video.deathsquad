@@ -74,30 +74,6 @@ def getParams():
     return param
 
 
-def getHtml(url):
-    
-    """Retrieve and return remote resource as string
-    
-    Arguments:  url -- A string containing the url of a remote page to retrieve
-    Returns:    data -- A string containing the contents to the remote page"""
-
-    # Build the page request including setting the User Agent
-    req  = urllib2.Request(url)
-    req.add_header('User-Agent', 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3')
-
-    # connect to url using urlopen
-    client = urllib2.urlopen(req)
-    
-    # read data from page
-    data = client.read()
-    
-    # close connection to url
-    client.close()
-    
-    # return the retrieved data
-    return data
-
-
 def log(txt, severity=xbmc.LOGDEBUG):
     
     """Log txt to xbmc.log at specified severity
